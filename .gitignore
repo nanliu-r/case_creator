@@ -1,0 +1,18 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Data (generated at runtime)
+data/chroma_db/
+output/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store

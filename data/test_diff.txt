@@ -1,0 +1,107 @@
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index abc1234..def5678 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -1800,6 +1800,45 @@ static X86CPUDefinition x86_cpu_cascadelake_server = {
+     .model_id = "Intel Xeon Processor (Cascadelake)",
+ };
+
++static X86CPUDefinition x86_cpu_epyc_genoa = {
++    .name = "EPYC-Genoa",
++    .level = 0xd,
++    .vendor = CPUID_VENDOR_AMD,
++    .family = 25,
++    .model = 17,
++    .stepping = 1,
++    .features[FEAT_1_EDX] =
++        CPUID_SSE2 | CPUID_SSE | CPUID_FXSR | CPUID_MMX | CPUID_PAT,
++    .features[FEAT_8000_0001_EDX] =
++        CPUID_EXT2_LM | CPUID_EXT2_SYSCALL | CPUID_EXT2_NX,
++    .features[FEAT_8000_0001_ECX] =
++        CPUID_EXT3_OSVW | CPUID_EXT3_TOPOEXT,
++    .features[FEAT_SVM] =
++        CPUID_SVM_NPT | CPUID_SVM_NRIPSAVE,
++    .xlevel = 0x8000001E,
++    .model_id = "AMD EPYC-Genoa Processor",
++    .cache_info = &epyc_genoa_cache_info,
++    .versions = (X86CPUVersionDefinition[]) {
++        { .version = 1 },
++        { .version = 2, .alias = "EPYC-Genoa-v2",
++          .note = "Add missing FSRS/FZRM features" },
++        { /* end of list */ }
++    },
++};
++
+ static X86CPUDefinition x86_cpu_icelake_server = {
+     .name = "Icelake-Server",
+     .level = 27,
+@@ -2500,6 +2539,9 @@ static void x86_cpu_register_models(void)
+     register_cpudef(&x86_cpu_cascadelake_server);
+     register_cpudef(&x86_cpu_icelake_server);
+     register_cpudef(&x86_cpu_cooperlake);
++    register_cpudef(&x86_cpu_epyc_genoa);
++    register_cpudef(&x86_cpu_epyc_bergamo);
++    register_cpudef(&x86_cpu_epyc_siena);
+
+     /* AMD models */
+     register_cpudef(&x86_cpu_epyc);
+diff --git a/target/i386/cpu.h b/target/i386/cpu.h
+index 111aaaa..222bbbb 100644
+--- a/target/i386/cpu.h
++++ b/target/i386/cpu.h
+@@ -850,6 +850,10 @@ typedef uint64_t FeatureWordArray[FEATURE_WORDS];
++#define CPUID_EXT4_AVX512_BF16    (1U << 5)
++#define CPUID_EXT4_AVX_VNNI       (1U << 4)
++#define CPUID_EXT4_SERIALIZE      (1U << 3)
++#define CPUID_EXT4_TSXLDTRK       (1U << 2)
+
+ /* KVM-specific features */
+ #define FEAT_KVM_ASYNC_PF         (1U << 0)
+diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
+index 333cccc..444dddd 100644
+--- a/target/i386/kvm/kvm.c
++++ b/target/i386/kvm/kvm.c
+@@ -450,6 +450,25 @@ static bool has_msr_mcg_ext_ctl;
++static bool kvm_enable_xfd(void)
++{
++    uint64_t val;
++
++    if (!kvm_check_extension(kvm_state, KVM_CAP_XFD)) {
++        return false;
++    }
++
++    val = kvm_arch_get_supported_cpuid(kvm_state, 0xD, 1, R_ECX);
++    if (val & CPUID_D_1_ECX_XFD) {
++        return true;
++    }
++
++    return false;
++}
++
+ static int kvm_get_tsc(CPUState *cs)
+ {
+     X86CPU *cpu = X86_CPU(cs);
+@@ -520,6 +539,11 @@ int kvm_arch_init_vcpu(CPUState *cs)
+         }
+     }
+
++    /* Enable XFD (eXtended Feature Disable) if supported */
++    if (kvm_enable_xfd()) {
++        env->features[FEAT_XFD] |= CPUID_XFD_XFD;
++    }
++
+     return 0;
+ }
+diff --git a/target/i386/kvm/kvm-cpu.c b/target/i386/kvm/kvm-cpu.c
+index 555eeee..666ffff 100644
+--- a/target/i386/kvm/kvm-cpu.c
++++ b/target/i386/kvm/kvm-cpu.c
+@@ -120,6 +120,9 @@ static X86CPUFeature kvm_cpu_features[] = {
+     FEAT_KVM(KVM_FEATURE_PV_UNHALT, "kvm-pv-unhalt"),
+     FEAT_KVM(KVM_FEATURE_PV_TLB_FLUSH, "kvm-pv-tlb-flush"),
+     FEAT_KVM(KVM_FEATURE_ASYNC_PF_INT, "kvm-asyncpf-int"),
++    FEAT_KVM(KVM_FEATURE_PV_IPI, "kvm-pv-ipi"),
++    FEAT_KVM(KVM_FEATURE_PV_SCHED_YIELD, "kvm-pv-sched-yield"),
++    FEAT_KVM(KVM_FEATURE_PV_POLL_CONTROL, "kvm-poll-control"),
+     FEAT_END_KVM,
+ };
