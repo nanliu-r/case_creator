@@ -33,7 +33,7 @@ class Config:
     ])
 
     # Default qemu repo path
-    default_repo: str = "/Users/liunana/workspace/qemu"
+    default_repo: str = ""
 
     # Output
     default_output: str = "output"
